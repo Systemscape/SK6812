@@ -1,8 +1,23 @@
 [package]
-name = "SK6812"
+name = "sk6812"
 version = "0.1.0"
 edition = "2021"
+keywords = [
+    "embedded-hal-driver",
+    "async",
+    "led"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+]
+repository = "https://github.com/systemscape/sk6812-rs-async"
+rust-version = "1.68"
 
 [dependencies]
+embedded-hal-async = "0.2.0-alpha.1"
+embedded-hal = "1.0.0-alpha.10"
+smart-leds = "0.3"
+
+defmt = { version = "0.3", optional = true }
+
+[features]
+default = []
+defmt = ["dep:defmt"]
