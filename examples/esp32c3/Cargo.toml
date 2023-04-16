@@ -1,0 +1,51 @@
+[package]
+name = "sk6812-esp32c3-example"
+version = "0.1.0"
+authors = ["julidi"]
+edition = "2021"
+resolver = "2"
+
+[profile.release]
+opt-level = "s"
+#panic = "abort"
+lto = "thin"
+#codegen-units = 1
+
+[profile.dev]
+debug = true    # Symbols are nice and they don't increase the size on Flash
+opt-level = "z"
+
+
+[features]
+default = ["native"]
+native = ["esp-idf-sys/native"]
+
+[dependencies]
+esp-idf-sys = { version = "0.32", features = ["binstart"] }
+esp-idf-hal = "*"
+embedded-hal = "1.0.0-alpha.9"
+embedded-hal-async = "0.2.0-alpha.1"
+
+
+anyhow = "1.0"
+toml-cfg = "0.1"
+serde_json = "1.0"
+nb = "1.0.0"
+
+
+serde = { version = "1", features = ["derive"] }
+time = { version = "0.3.17", features = ["serde"] }
+
+
+sk6812 = {path = "../../" }
+smart-leds-trait = { version = "0.2" }
+
+# Do not log on trace, this only causes problems... :/
+log = { version = "0.4", features = [
+    "max_level_debug",
+    "release_max_level_debug",
+] }
+
+[build-dependencies]
+embuild = "0.28"
+anyhow = "1"
