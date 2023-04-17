@@ -13,31 +13,44 @@ lto = "thin"
 
 [profile.dev]
 debug = true    # Symbols are nice and they don't increase the size on Flash
-opt-level = "z"
-
+opt-level = "s"
 
 [features]
-default = ["native"]
-native = ["esp-idf-sys/native"]
+
 
 [dependencies]
-esp-idf-sys = { version = "0.32", features = ["binstart"] }
-esp-idf-hal = "*"
-embedded-hal = "1.0.0-alpha.9"
-embedded-hal-async = "0.2.0-alpha.1"
+embassy-time = { version = "0.1", features = ["nightly", "tick-hz-16_000_000"] }
+embedded-hal = { version = "0.2.7", features = ["unproven"] }
+embedded-hal-1 = { version = "=1.0.0-alpha.9", package = "embedded-hal" }
+embedded-hal-async = { version = "0.2.0-alpha.0" }
+esp32c3-hal = { version = "0.8" }
+esp-hal-common = { version = "0.8", features = [
+    "esp32c3",
+    "async",
+    "embassy",
+    "embassy-time-systick",
+    "vectored",
+    "rv-zero-rtc-bss",
+] }
+
+aes = "0.8.2"
+critical-section = "1.1.1"
+embassy-executor = { package = "embassy-executor", git = "https://github.com/embassy-rs/embassy/", rev = "cd9a65b", features = [
+    "nightly",
+    "integrated-timers",
+] }
+esp-backtrace = { version = "0.6.0", features = [
+    "esp32c3",
+    "panic-handler",
+    "exception-handler",
+    "print-uart",
+] }
+esp-println = { version = "0.4.0", features = ["esp32c3"] }
+
+static_cell       = "1.0.0"
 
 
-anyhow = "1.0"
-toml-cfg = "0.1"
-serde_json = "1.0"
-nb = "1.0.0"
-
-
-serde = { version = "1", features = ["derive"] }
-time = { version = "0.3.17", features = ["serde"] }
-
-
-sk6812 = {path = "../../" }
+sk6812 = { path = "../../" }
 smart-leds-trait = { version = "0.2" }
 
 # Do not log on trace, this only causes problems... :/

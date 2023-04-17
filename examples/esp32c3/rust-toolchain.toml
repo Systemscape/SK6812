@@ -1,2 +1,3 @@
 [toolchain]
-channel = "nightly-2023-01-03"
+# fix some weird error with embedded-hal-async
+channel = "nightly-2023-03-09"
