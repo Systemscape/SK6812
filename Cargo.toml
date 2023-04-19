@@ -7,7 +7,8 @@ repository = "https://github.com/systemscape/sk6812-rs-async"
 rust-version = "1.68"
 
 [dependencies]
-embedded-hal-async = { version = "0.2.0-alpha.0", optional = true }
+#embedded-hal-async = { version = "0.2.0-alpha.0", optional = true }
+embedded-hal-async = { version = "0.1.0-alpha.3", optional = true }
 embedded-hal = "1.0.0-alpha.9"
 smart-leds = "0.3"
 defmt = { version = "0.3", optional = true }

@@ -7,29 +7,35 @@
 #![feature(type_alias_impl_trait)]
 
 use embassy_executor::Executor;
-use embassy_time::{Duration, Timer};
-use embedded_hal_async::digital::Wait;
 use esp32c3_hal::{
     clock::ClockControl,
     embassy,
-    gpio::{Gpio1, Output},
+    gpio::{Gpio1, Output, PushPull},
     peripherals::Peripherals,
     prelude::*,
     timer::TimerGroup,
     Rtc, IO,
 };
 use esp_backtrace as _;
-use esp_hal_common::gpio::PushPull;
 use static_cell::StaticCell;
 
-use sk6812::Sk6812;
+use sk6812::{new_rgbw, sk6812_async, sk6812_blocking};
 
 #[embassy_executor::task]
-async fn flash_leds(mut pin: Gpio1<Output<PushPull>>) {
+async fn flash_leds(pin: Gpio1<Output<PushPull>>) {
+    let mut led = sk6812_async::Sk6812::new(pin).await;
+
+    esp_println::println!("Waiting...");
+    let mut val = 0_u8;
     loop {
-        esp_println::println!("Waiting...");
-        let mut delay = embassy_time::Delay;
-        let mut led = Sk6812::new(&mut delay, pin);
+        let iter = [new_rgbw(val, val, val, 0)];
+        led.write(&mut embassy_time::Delay, iter).await;
+
+        //val = val.overflowing_add(1).0;
+
+        embassy_time::Delay.delay_ms(100_u8);
+
+        esp_println::println!("Value: {val}");
     }
 }
 
@@ -43,17 +49,9 @@ fn main() -> ! {
     let clocks = ClockControl::boot_defaults(system.clock_control).freeze();
 
     let mut rtc = Rtc::new(peripherals.RTC_CNTL);
-    let timer_group0 = TimerGroup::new(
-        peripherals.TIMG0,
-        &clocks,
-        //&mut system.peripheral_clock_control,
-    );
+    let timer_group0 = TimerGroup::new(peripherals.TIMG0, &clocks);
     let mut wdt0 = timer_group0.wdt;
-    let timer_group1 = TimerGroup::new(
-        peripherals.TIMG1,
-        &clocks,
-        //&mut system.peripheral_clock_control,
-    );
+    let timer_group1 = TimerGroup::new(peripherals.TIMG1, &clocks);
     let mut wdt1 = timer_group1.wdt;
 
     // Disable watchdog timers
@@ -67,9 +65,6 @@ fn main() -> ! {
         esp32c3_hal::systimer::SystemTimer::new(peripherals.SYSTIMER),
     );
 
-    #[cfg(feature = "embassy-time-timg0")]
-    embassy::init(&clocks, timer_group0.timer0);
-
     let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
     // GPIO 1 as output
     let output_pin = io.pins.gpio1.into_push_pull_output();
@@ -81,7 +76,31 @@ fn main() -> ! {
     )
     .unwrap();
 
-    let mut delay = embassy_time::Delay;
+    let mut led = sk6812_blocking::Sk6812::new(output_pin);
+
+    esp_println::println!("Waiting...");
+    let mut val = 0_u8;
+    loop {
+        let iter = [
+            new_rgbw(0,0,0,0),
+            new_rgbw(0,0,0,0),
+            new_rgbw(0,0,0,0),
+            new_rgbw(0,0,0,0),
+            new_rgbw(0,0,0,0),
+            new_rgbw(0,0,0,0),
+            new_rgbw(0,0,0,0),
+            new_rgbw(0,0,0,0),
+            new_rgbw(0,0,0,0),
+            new_rgbw(0,0,0,0),
+            ];
+        led.write(&mut embassy_time::Delay, iter);
+
+        //val = val.overflowing_add(1).0;
+
+        embassy_time::Delay.delay_ms(10_u8);
+
+        esp_println::println!("Value: {val}");
+    }
 
     let executor = EXECUTOR.init(Executor::new());
     executor.run(|spawner| {

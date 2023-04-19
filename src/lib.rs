@@ -4,7 +4,6 @@
 #![doc = include_str!("../README.md")]
 #![feature(type_alias_impl_trait)]
 
-use smart_leds::RGB;
 
 /// Async implementation for use with embedded-hal-async
 #[cfg(feature = "async")]
