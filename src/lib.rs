@@ -4,53 +4,25 @@
 #![doc = include_str!("../README.md")]
 #![feature(type_alias_impl_trait)]
 
-use embedded_hal::digital::OutputPin;
-use embedded_hal_async::delay::DelayUs;
+use smart_leds::RGB;
 
-type RGBW = smart_leds::RGBW<u8>;
+/// Async implementation for use with embedded-hal-async
+#[cfg(feature = "async")]
+pub mod sk6812_async;
 
-/// SK6812 struct holding a `Delay` and the pin to which the LEDs are connected
-pub struct Sk6812<Delay: DelayUs, Pin: OutputPin> {
-    delay: Delay,
-    pin: Pin,
-}
+/// Blocking implementation
+#[cfg(feature = "blocking")]
+pub mod sk6812_blocking;
 
-impl<Delay: DelayUs, Pin: OutputPin> Sk6812<Delay, Pin> {
-    /// Construct an instance from a [`Delay`] and [`Pin`]
-    pub async fn new(delay: Delay, pin: Pin) -> Self {
-        Self { delay, pin }
-    }
+/// RGBW type
+pub type RGBW = smart_leds::RGBW<u8>;
 
-    /// Write the RGBW colors stored in `iter` to the LEDs
-    pub async fn write(&mut self, iter: impl Iterator<Item = RGBW>) {
-        for RGBW { r, g, b, a } in iter {
-            self.write_byte(r).await;
-            self.write_byte(g).await;
-            self.write_byte(b).await;
-            self.write_byte(a.0).await;
-        }
-        // Send reset code after writing all bytes
-        let _ = self.delay.delay_us(90).await;
-    }
-
-    /// Write a single byte to the LED according to the specification
-    async fn write_byte(&mut self, mut data: u8) {
-        for _ in 0..8 {
-            // If the MSB is 1 (i.e. masked byte non-zero), send the sequence for 1 and vice versa
-            if (data & 0x80) != 0 {
-                let _ = self.delay.delay_us(1).await;
-                self.pin.set_high().ok();
-                let _ = self.delay.delay_us(2).await; // Send long HIGH pulse
-                self.pin.set_low().ok();
-            } else {
-                let _ = self.delay.delay_us(1).await;
-                self.pin.set_high().ok();
-                let _ = self.delay.delay_us(1).await; // Send short HIGH pulse
-                self.pin.set_low().ok();
-                let _ = self.delay.delay_us(1).await;
-            }
-            // Shift 1 bit left so the next bit is the new MSB
-            data <<= 1;
-        }
+/// Convenience function
+pub fn new_rgbw(r: u8, g: u8, b: u8, w: u8) -> RGBW {
+    RGBW {
+        r,
+        g,
+        b,
+        a: smart_leds::White(w),
     }
 }
