@@ -47,3 +47,38 @@ impl<Pin: OutputPin> Sk6812<Pin> {
         }
     }
 }
+
+use embedded_hal_async::spi::{ErrorType, SpiBusWrite};
+
+const PATTERNS: [u8; 4] = [0b1000_1000, 0b1000_1110, 0b1110_1000, 0b1110_1110];
+
+/// N = 12 * NUM_LEDS
+pub struct Sk6812Spi<SPI: SpiBusWrite<u8>, const N: usize> {
+    spi: SPI,
+    data: [u8; N],
+}
+
+impl<SPI: SpiBusWrite<u8>, const N: usize> Sk6812Spi<SPI, N> {
+    /// Create new
+    pub fn new(spi: SPI) -> Self {
+        Self { spi, data: [0; N] }
+    }
+
+    /// Write RGBW values
+    pub async fn write(
+        &mut self,
+        iter: impl IntoIterator<Item = RGBW>,
+    ) -> Result<(), <SPI as ErrorType>::Error> {
+        for (led_bytes, RGBW { r, g, b, a }) in self.data.chunks_mut(18).zip(iter) {
+            for (i, mut color) in [r, g, b, a.0].into_iter().enumerate() {
+                for ii in 0..4 {
+                    led_bytes[i * 4 + ii] = PATTERNS[((color & 0b1100_0000) >> 6) as usize];
+                    color <<= 2;
+                }
+            }
+        }
+        self.spi.write(&self.data).await?;
+        let blank = [0_u8; 140];
+        self.spi.write(&blank).await
+    }
+}
