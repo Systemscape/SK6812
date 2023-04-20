@@ -10,7 +10,7 @@ pub struct Sk6812<Pin: OutputPin> {
 
 impl<Pin: OutputPin> Sk6812<Pin> {
     /// Construct an instance from a [`Delay`] and [`Pin`]
-    pub async fn new(pin: Pin) -> Self {
+    pub fn new(pin: Pin) -> Self {
         Self { pin }
     }
 
@@ -50,35 +50,59 @@ impl<Pin: OutputPin> Sk6812<Pin> {
 
 use embedded_hal_async::spi::{ErrorType, SpiBusWrite};
 
+// Bit patterns sent over SPI. 4 bit on SPI are used to represent one color bit
+// So each bye in `patterns` encodes two bits of `data`
 const PATTERNS: [u8; 4] = [0b1000_1000, 0b1000_1110, 0b1110_1000, 0b1110_1110];
 
 /// N = 12 * NUM_LEDS
 pub struct Sk6812Spi<SPI: SpiBusWrite<u8>, const N: usize> {
     spi: SPI,
-    data: [u8; N],
+    spi_buffer: [u8; N],
 }
 
 impl<SPI: SpiBusWrite<u8>, const N: usize> Sk6812Spi<SPI, N> {
     /// Create new
     pub fn new(spi: SPI) -> Self {
-        Self { spi, data: [0; N] }
+        Self {
+            spi,
+            spi_buffer: [0; N],
+        }
     }
 
-    /// Write RGBW values
+    /// Write the RGBW colors stored in `iter` to the LEDs
     pub async fn write(
         &mut self,
         iter: impl IntoIterator<Item = RGBW>,
     ) -> Result<(), <SPI as ErrorType>::Error> {
-        for (led_bytes, RGBW { r, g, b, a }) in self.data.chunks_mut(18).zip(iter) {
-            for (i, mut color) in [r, g, b, a.0].into_iter().enumerate() {
-                for ii in 0..4 {
-                    led_bytes[i * 4 + ii] = PATTERNS[((color & 0b1100_0000) >> 6) as usize];
+        // Iterate over all colors and get chunks of 4 byte * 4 byte
+        // since each of the 4 colors (RGBW) has 1 byte
+        // And on the SPI we represent 2 bits as 1 byte (so each color byte gets 4 spi bytes)
+        for (spi_bytes, RGBW { r, g, b, a }) in self.spi_buffer.chunks_mut(4 * 4).zip(iter) {
+            // Iterate over each color while keeping track of the index (1 byte color => 4 bytes on spi)
+            for (idx_color, mut color) in [r, g, b, a.0].into_iter().enumerate() {
+                // Iterate over 4 bit pairs (i.e. one byte of data)
+                for idx_two_bits in 0..4 {
+                    // Mask the highest two bit and shift them to the two lowest bits
+                    let two_bits = (color & 0b1100_0000) >> 6;
+                    // Send the pattern corresponding to the two bits
+                    spi_bytes[idx_color * 4 + idx_two_bits] = PATTERNS[two_bits as usize];
                     color <<= 2;
                 }
             }
         }
-        self.spi.write(&self.data).await?;
-        let blank = [0_u8; 140];
-        self.spi.write(&blank).await
+        self.spi.write(&self.spi_buffer).await?;
+        self.flush().await.unwrap();
+        // Send reset code after writing all bytes
+        //let _ = delay.delay_us(90).await;
+
+        Ok(())
+    }
+    // Send some zeros
+    async fn flush(&mut self) -> Result<(), <SPI as ErrorType>::Error> {
+        // Should be > 300μs, so for an SPI Freq. of 3.8MHz, we have to send at least 1140 low bits or 140 low bytes
+        let zero = [0_u8; 140];
+        self.spi.write(&zero).await?;
+        self.spi.flush();
+        Ok(())
     }
 }
