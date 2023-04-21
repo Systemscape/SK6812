@@ -34,6 +34,7 @@ async fn main(_spawner: Spawner) {
     );
     let p: embassy_stm32::Peripherals = embassy_stm32::init(config);
 
+
     let spi = Spi::new_txonly_nosck(
         p.SPI1,
         p.PA7,
@@ -45,7 +46,7 @@ async fn main(_spawner: Spawner) {
 
     info!("Tick Hz is {}", embassy_time::TICK_HZ);
 
-    let mut pin = Output::new(p.PA2, Level::High, Speed::Low);
+    //let mut pin = Output::new(p.PA2, Level::High, Speed::Low);
 
     let mut led: Sk6812Spi<_, { 16 * 10 }> = Sk6812Spi::new(spi);
     
@@ -73,6 +74,7 @@ async fn main(_spawner: Spawner) {
             new_rgbw(buf[32], buf[33], buf[34], 0),//buf[35]),
         ];
         //led.write(&mut embassy_time::Delay, iter);
+        //led.write(&mut delay, iter);
         led.write(iter).await.unwrap();
 
         val = val.overflowing_add(1).0;
@@ -85,7 +87,7 @@ async fn main(_spawner: Spawner) {
             val2 = 0;
         }
         delay.delay_ms(500_u32);
-        pin.toggle();
+        //pin.toggle();
 
         //info!("Value: {}", val);
     }

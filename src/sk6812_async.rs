@@ -23,7 +23,7 @@ impl<Pin: OutputPin> Sk6812<Pin> {
             self.write_byte(delay, a.0).await;
         }
         // Send reset code after writing all bytes
-        let _ = delay.delay_us(90).await;
+        delay.delay_us(90).await;
     }
 
     /// Write a single byte to the LED according to the specification
@@ -31,16 +31,16 @@ impl<Pin: OutputPin> Sk6812<Pin> {
         for _ in 0..8 {
             // If the MSB is 1 (i.e. masked byte non-zero), send the sequence for 1 and vice versa
             if (data & 0x80) != 0 {
-                let _ = delay.delay_us(1).await;
+                delay.delay_us(1).await;
                 self.pin.set_high().ok();
-                let _ = delay.delay_us(2).await; // Send long HIGH pulse
+                delay.delay_us(2).await; // Send long HIGH pulse
                 self.pin.set_low().ok();
             } else {
-                let _ = delay.delay_us(1).await;
+                delay.delay_us(1).await;
                 self.pin.set_high().ok();
-                let _ = delay.delay_us(1).await; // Send short HIGH pulse
+                delay.delay_us(1).await; // Send short HIGH pulse
                 self.pin.set_low().ok();
-                let _ = delay.delay_us(1).await;
+                delay.delay_us(1).await;
             }
             // Shift 1 bit left so the next bit is the new MSB
             data <<= 1;
