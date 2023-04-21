@@ -92,8 +92,6 @@ impl<SPI: SpiBusWrite<u8>, const N: usize> Sk6812Spi<SPI, N> {
         }
         self.spi.write(&self.spi_buffer).await?;
         self.flush().await.unwrap();
-        // Send reset code after writing all bytes
-        //let _ = delay.delay_us(90).await;
 
         Ok(())
     }
