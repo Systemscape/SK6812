@@ -1,5 +1,5 @@
-use embedded_hal::digital::OutputPin;
 use embedded_hal::delay::DelayUs;
+use embedded_hal::digital::OutputPin;
 
 use crate::RGBW;
 
