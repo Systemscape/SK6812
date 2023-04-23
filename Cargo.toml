@@ -8,10 +8,10 @@ rust-version = "1.68"
 
 [dependencies]
 embedded-hal-async = { version = "0.2.0-alpha.1", optional = true }
-#embedded-hal-async = { version = "0.1.0-alpha.3", path = "/Users/jdickert/Documents/Git/embedded-hal/embedded-hal-async", optional = true }
 embedded-hal = "1.0.0-alpha.9"
 smart-leds = "0.3"
 defmt = { version = "0.3", optional = true }
+
 
 [features]
 default = ["async", "blocking"]

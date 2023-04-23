@@ -8,8 +8,11 @@ pub struct Sk6812<Pin: OutputPin> {
     pin: Pin,
 }
 
+#[deprecated(
+    note = "Seems to be not working with SK6812 because a us delay is too long. Use the Sk6812Spi instead."
+)]
 impl<Pin: OutputPin> Sk6812<Pin> {
-    /// Construct an instance from a [`Delay`] and [`Pin`]
+    /// Construct an instance from an[`OutputPin`]
     pub fn new(pin: Pin) -> Self {
         Self { pin }
     }
@@ -54,18 +57,37 @@ use embedded_hal_async::spi::{ErrorType, SpiBusWrite};
 // So each bye in `patterns` encodes two bits of `data`
 const PATTERNS: [u8; 4] = [0b1000_1000, 0b1000_1110, 0b1110_1000, 0b1110_1110];
 
-/// N = 12 * NUM_LEDS
-pub struct Sk6812Spi<SPI: SpiBusWrite<u8>, const N: usize> {
+/// Async SPI-based driver for SK6812 RGBW LEDs
+/// `NUM_LEDS_X_16` is the number of RGBW LEDs on the strip times 16.
+/// # Example:
+/// ```ignore
+/// use sk6812::sk6812_async::Sk6812Spi;
+/// use embassy_stm32::spi::{Config, Spi};
+/// // Initialize the board and obtain a Peripherals instance
+/// let p: = embassy_stm32::init(Default::default());
+/// // Create tx only spi instance on pin A8 (PA_7) of the nucleo board
+/// let spi = Spi::new_txonly_nosck(
+///     p.SPI1,
+///     p.PA7,
+///     p.DMA1_CH3,
+///     NoDma,
+///     Hertz(3_000_000),
+///     Config::default(),
+/// );
+/// // Create an instance of the led for 9 LEDs on the strip
+/// let mut led: Sk6812Spi<_, {9*16}> = Sk6812Spi::new(spi);
+/// ```
+pub struct Sk6812Spi<SPI: SpiBusWrite<u8>, const NUM_LEDS_X_16: usize> {
     spi: SPI,
-    spi_buffer: [u8; N],
+    spi_buffer: [u8; NUM_LEDS_X_16],
 }
 
-impl<SPI: SpiBusWrite<u8>, const N: usize> Sk6812Spi<SPI, N> {
-    /// Create new
+impl<SPI: SpiBusWrite<u8>, const NUM_LEDS_X_16: usize> Sk6812Spi<SPI, NUM_LEDS_X_16> {
+    /// Create instance using the given [`SpiBusWrite`]
     pub fn new(spi: SPI) -> Self {
         Self {
             spi,
-            spi_buffer: [0; N],
+            spi_buffer: [0_u8; NUM_LEDS_X_16],
         }
     }
 
@@ -84,6 +106,7 @@ impl<SPI: SpiBusWrite<u8>, const N: usize> Sk6812Spi<SPI, N> {
                 for idx_two_bits in 0..4 {
                     // Mask the highest two bit and shift them to the two lowest bits
                     let two_bits = (color & 0b1100_0000) >> 6;
+
                     // Send the pattern corresponding to the two bits
                     spi_bytes[idx_color * 4 + idx_two_bits] = PATTERNS[two_bits as usize];
                     color <<= 2;
@@ -95,7 +118,9 @@ impl<SPI: SpiBusWrite<u8>, const N: usize> Sk6812Spi<SPI, N> {
 
         Ok(())
     }
-    // Send some zeros
+
+    /// Send zeros as reset code
+    #[inline]
     async fn flush(&mut self) -> Result<(), <SPI as ErrorType>::Error> {
         // Should be > 300μs, so for an SPI Freq. of 3.8MHz, we have to send at least 1140 low bits or 140 low bytes
         let zero = [0_u8; 140];

@@ -9,7 +9,7 @@ pub struct Sk6812<Pin: OutputPin> {
 }
 
 impl<Pin: OutputPin> Sk6812<Pin> {
-    /// Construct an instance from a [`Delay`] and [`Pin`]
+    /// Construct an instance for a given [`OutputPin`]
     pub fn new(pin: Pin) -> Self {
         Self { pin }
     }

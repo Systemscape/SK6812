@@ -30,10 +30,13 @@ async fn main(_spawner: Spawner) {
         embassy_stm32::rcc::PLLMul::Mul18,
         Some(embassy_stm32::rcc::PLLClkDiv::Div6), // 48Mhz (16 / 1 * 18 / 6)
     );
+
+    // Initialize the board and obtain a Peripherals instance
     let p: embassy_stm32::Peripherals = embassy_stm32::init(config);
 
     info!("Tick Hz is {}", embassy_time::TICK_HZ);
 
+    // Create tx only spi instance on pin A8 (PA_7) of the nucleo board
     let spi = Spi::new_txonly_nosck(
         p.SPI1,
         p.PA7,
@@ -42,12 +45,18 @@ async fn main(_spawner: Spawner) {
         Hertz(3_000_000),
         Config::default(),
     );
-    let mut led: Sk6812Spi<_, { 16 * 10 }> = Sk6812Spi::new(spi);
+
+    // Create an instance of the led for 9 LEDs on the strip
+    let mut led: Sk6812Spi<_, {9*16}> = Sk6812Spi::new(spi);
+
+    // embassy_time delay for slowing down the loop.
     let mut delay = embassy_time::Delay;
 
+    // Counter to light up the LEDs one after the other
     let mut counter = 0;
 
     loop {
+        // Array of colors, each represents a single LED
         let all_colors = [
             new_rgbw(10, 0, 0, 0),
             new_rgbw(0, 10, 0, 0),
@@ -60,8 +69,8 @@ async fn main(_spawner: Spawner) {
             new_rgbw(10, 10, 10, 10),
         ];
 
-        let colors = all_colors.iter().enumerate().map(|(i, color)| 
-        {
+        // First iteration no LED, second iteration first LED, third iteration second LED etc.
+        let colors = all_colors.iter().enumerate().map(|(i, color)| {
             if i < counter {
                 *color
             } else {
@@ -69,6 +78,7 @@ async fn main(_spawner: Spawner) {
             }
         });
 
+        // Output the color iterator to the led strip
         led.write(colors).await.unwrap();
 
         counter += 1;
@@ -78,5 +88,4 @@ async fn main(_spawner: Spawner) {
 
         delay.delay_ms(500_u32);
     }
-
 }
