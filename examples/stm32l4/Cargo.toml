@@ -5,7 +5,7 @@ edition = "2021"
 resolver = "2"
 
 [dependencies]
-embassy-executor = { version = "0.1", features = ["nightly", "defmt", "integrated-timers"] }
+embassy-executor = { version = "0.1", git = "https://github.com/embassy-rs/embassy", features = ["nightly", "defmt", "integrated-timers", "arch-cortex-m", "executor-thread"] }
 embassy-time = { version = "0.1", git = "https://github.com/embassy-rs/embassy", features = ["defmt", "defmt-timestamp-uptime", "tick-hz-2_000_000", "unstable-traits", "nightly"] }
 embassy-embedded-hal = { version = "0.1", git = "https://github.com/embassy-rs/embassy"}
 embassy-stm32 = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy", features = ["nightly", "defmt", "unstable-pac", "stm32l432kc", "time-driver-any", "exti", "unstable-traits"]  }

@@ -1,27 +1,17 @@
-//! embassy wait
-//!
-//! This is an example of asynchronously `Wait`ing for a pin state to change.
-
 #![no_std]
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
-use embassy_executor::{Executor, Spawner};
+use embassy_executor::Spawner;
 use esp32c3_hal::{
-    clock::ClockControl,
-    dma::{DmaPriority, ChannelTx, ChannelRx},
-    embassy,
-    gdma::{Gdma, Channel0TxImpl, Channel0RxImpl, SuitablePeripheral0},
-    gpio::{Gpio1, Output, PushPull},
-    peripherals::{Peripherals, self},
-    prelude::*,
-    timer::TimerGroup,
-    Rtc, Spi, IO, spi::{dma::SpiDma, FullDuplexMode},
+    clock::ClockControl, dma::DmaPriority, embassy, gdma::Gdma, peripherals::Peripherals,
+    prelude::*, timer::TimerGroup, Delay, Rtc, Spi, IO,
 };
 use esp_backtrace as _;
+use esp_riscv_rt as riscv_rt;
 use static_cell::StaticCell;
 
-use sk6812::{new_rgbw, sk6812_async, sk6812_async::Sk6812Spi, sk6812_blocking};
+use sk6812::{new_rgbw, sk6812_async::Sk6812Spi};
 
 macro_rules! singleton {
     ($val:expr) => {{
@@ -32,28 +22,26 @@ macro_rules! singleton {
     }};
 }
 
-pub type SpiType<'d> = SpiDma<
-    'd,
-    esp32c3_hal::peripherals::SPI2,
-    ChannelTx<'d, Channel0TxImpl, esp32c3_hal::gdma::Channel0>,
-    ChannelRx<'d, Channel0RxImpl, esp32c3_hal::gdma::Channel0>,
-    SuitablePeripheral0,
-    FullDuplexMode,
->;
-
-static EXECUTOR: StaticCell<Executor> = StaticCell::new();
-
 #[embassy_executor::main]
-async fn main(spawner: Spawner) {
-    esp_println::println!("Init!");
+async fn main(_spawner: Spawner) -> ! {
+    esp_println::println!("Init peripherals etc.");
+
     let peripherals = Peripherals::take();
     let mut system = peripherals.SYSTEM.split();
     let clocks = ClockControl::boot_defaults(system.clock_control).freeze();
 
     let mut rtc = Rtc::new(peripherals.RTC_CNTL);
-    let timer_group0 = TimerGroup::new(peripherals.TIMG0, &clocks);
+    let timer_group0 = TimerGroup::new(
+        peripherals.TIMG0,
+        &clocks,
+        &mut system.peripheral_clock_control,
+    );
     let mut wdt0 = timer_group0.wdt;
-    let timer_group1 = TimerGroup::new(peripherals.TIMG1, &clocks);
+    let timer_group1 = TimerGroup::new(
+        peripherals.TIMG1,
+        &clocks,
+        &mut system.peripheral_clock_control,
+    );
     let mut wdt1 = timer_group1.wdt;
 
     // Disable watchdog timers
@@ -67,30 +55,29 @@ async fn main(spawner: Spawner) {
         esp32c3_hal::systimer::SystemTimer::new(peripherals.SYSTIMER),
     );
 
-    //let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
-    // GPIO 1 as output
-    //let output_pin = io.pins.gpio1.into_push_pull_output();
-
     // Async requires the GPIO interrupt to wake futures
     esp32c3_hal::interrupt::enable(
-        esp32c3_hal::peripherals::Interrupt::GPIO,
+        esp32c3_hal::peripherals::Interrupt::DMA_CH0,
         esp32c3_hal::interrupt::Priority::Priority1,
     )
     .unwrap();
 
-    let dma = Gdma::new(peripherals.DMA, &mut system.peripheral_clock_control);
+    let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
+    let mosi = io.pins.gpio1;
 
+    let dma = Gdma::new(peripherals.DMA, &mut system.peripheral_clock_control);
     let dma_channel = dma.channel0;
+
     let descriptors = singleton!([0u32; 8 * 3]);
     let rx_descriptors = singleton!([0u32; 8 * 3]);
 
-    let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
+    esp_println::println!("Init SPI");
 
-    let mut spi = Spi::new_no_cs_no_miso(
+    // Create a 300kHz SPI on the configured mosi pin
+    let spi = Spi::new_mosi_only(
         peripherals.SPI2,
-        io.pins.gpio2,
-        io.pins.gpio1,
-        3800u32.kHz(),
+        mosi,
+        3000u32.kHz(),
         esp32c3_hal::spi::SpiMode::Mode0,
         &mut system.peripheral_clock_control,
         &clocks,
@@ -102,32 +89,46 @@ async fn main(spawner: Spawner) {
         DmaPriority::Priority0,
     ));
 
-    //let mut led = sk6812_blocking::Sk6812::new(output_pin);
-    let mut led: Sk6812Spi<_, { 16 * 10 }> = Sk6812Spi::new(spi);
+    // Create an instance of the led for 9 LEDs on the strip
+    let mut led: Sk6812Spi<_, { 9 * 16 }> = Sk6812Spi::new(spi);
 
-    esp_println::println!("Waiting...");
-    let mut val = 0_u8;
+    // Counter to light up the LEDs one after the other
+    let mut counter = 0;
+
+    // Delay to slow down the loop a little
+    let mut delay = Delay::new(&clocks);
+
+    esp_println::println!("Entering loop...");
     loop {
-        let iter = [
-            new_rgbw(0, 0, 0, 0),
-            new_rgbw(0, 0, 0, 0),
-            new_rgbw(0, 0, 0, 0),
-            new_rgbw(0, 0, 0, 0),
-            new_rgbw(0, 0, 0, 0),
-            new_rgbw(0, 0, 0, 0),
-            new_rgbw(0, 0, 0, 0),
-            new_rgbw(0, 0, 0, 0),
-            new_rgbw(0, 0, 0, 0),
-            new_rgbw(0, 0, 0, 0),
+        // Array of colors, each represents a single LED
+        let all_colors = [
+            new_rgbw(10, 0, 0, 0),
+            new_rgbw(0, 10, 0, 0),
+            new_rgbw(0, 0, 10, 0),
+            new_rgbw(0, 0, 0, 10),
+            new_rgbw(10, 0, 0, 0),
+            new_rgbw(0, 10, 0, 0),
+            new_rgbw(0, 0, 10, 0),
+            new_rgbw(0, 0, 0, 10),
+            new_rgbw(10, 10, 10, 10),
         ];
-        //led.write(&mut embassy_time::Delay, iter);
-        led.write(iter).await;
 
-        //val = val.overflowing_add(1).0;
+        // First iteration no LED, second iteration first LED, third iteration second LED etc.
+        let colors = all_colors.iter().enumerate().map(|(i, color)| {
+            if i < counter {
+                *color
+            } else {
+                new_rgbw(0, 0, 0, 0)
+            }
+        });
 
-        embassy_time::Delay.delay_ms(10_u8);
+        // Output the color iterator to the led strip
+        led.write(colors).await.expect("Write to led");
 
-        esp_println::println!("Value: {val}");
+        counter += 1;
+        if counter > 9 {
+            counter = 0;
+        }
+        delay.delay_ms(500_u32);
     }
-
 }
