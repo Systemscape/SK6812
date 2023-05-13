@@ -129,3 +129,28 @@ impl<SPI: SpiBusWrite<u8>, const NUM_LEDS_X_16: usize> Sk6812Spi<SPI, NUM_LEDS_X
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use embedded_hal_mock::spi::{Mock as SpiMock, Transaction as SpiTransaction};
+
+    use crate::sk6812_async::Sk6812Spi;
+
+    #[tokio::test]
+    async fn led_all_off() {
+        let expectations = [
+            SpiTransaction::write_vec(vec![0b1000_1000; 16]),
+            SpiTransaction::write_vec(vec![0_u8; 140]),
+        ];
+        let mut spi = SpiMock::new(&expectations);
+
+        let mut led: Sk6812Spi<_, 16> = Sk6812Spi::new(&mut spi);
+
+        let colors = [crate::new_rgbw(0, 0, 0, 0)];
+
+        // Output the color iterator to the led strip
+        led.write(colors).await.expect("Write to led");
+
+        spi.done();
+    }
+}

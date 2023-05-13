@@ -12,6 +12,11 @@ embedded-hal = "1.0.0-alpha.9"
 smart-leds = "0.3"
 defmt = { version = "0.3", optional = true }
 
+[dev-dependencies]
+embedded-hal-mock = { git = "https://github.com/dbrgn/embedded-hal-mock.git", branch = "1-alpha", features = [
+    "embedded-hal-async",
+] }
+tokio = { version = "1.21.1", features = ["rt", "macros"] }
 
 [features]
 default = ["async", "blocking"]
