@@ -25,23 +25,18 @@ jobs:
           toolchain: ${{ env.rust_toolchain }}
           components: rustfmt, clippy, rust-src
       - name: Setup | Default to nightly
-        if: env.code_changes >= 1
         run: rustup default ${{ env.rust_toolchain }}
       - name: Setup | ldproxy
-        if: env.code_changes >= 1
         run: cargo install ldproxy
       # Build driver itself
       - name: Build | Fmt Check
-        if: env.code_changes >= 1
         working-directory: ./
         continue-on-error: true
         run: cargo fmt -- --check
       - name: Build | Clippy
-        if: env.code_changes >= 1
         working-directory: ./
         continue-on-error: true
         run: cargo clippy --all-features --no-deps -- -Dwarnings
       - name: Build | Compile
-        if: env.code_changes >= 1
         working-directory: ./
         run: cargo build --all-features
