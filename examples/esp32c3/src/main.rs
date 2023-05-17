@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
-use embassy_executor::{Executor, Spawner};
+use embassy_executor::Executor;
 use embassy_time::Delay;
 use embedded_hal_async::delay::DelayUs;
 use esp32c3_hal::{
@@ -110,7 +110,6 @@ fn main() -> ! {
         DmaPriority::Priority0,
     )));
 
-
     let executor = EXECUTOR.init(Executor::new());
     executor.run(|spawner| {
         spawner.spawn(led_task(spi)).ok();
@@ -125,7 +124,6 @@ async fn led_task(spi: &'static mut SpiType<'static>) {
 
     // Counter to light up the LEDs one after the other
     let mut counter = 0;
-
 
     esp_println::println!("Entering led_task loop...");
     loop {
@@ -158,7 +156,7 @@ async fn led_task(spi: &'static mut SpiType<'static>) {
         if counter > 9 {
             counter = 0;
         }
-        DelayUs::delay_ms(&mut Delay{}, 1000u32).await;
+        DelayUs::delay_ms(&mut Delay {}, 1000u32).await;
     }
 }
 
@@ -172,6 +170,6 @@ async fn print_task() {
         esp_println::println!("print_task look counter: {counter}");
         counter += 1;
 
-        DelayUs::delay_ms(&mut Delay{}, 200u32).await;
+        DelayUs::delay_ms(&mut Delay {}, 200u32).await;
     }
 }
