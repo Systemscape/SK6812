@@ -19,11 +19,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           fetch-depth: 2
-      - name: Setup | Identify changed projects
-        run: |
-          echo code_changes=$(git diff --diff-filter=ACMRT --name-only HEAD^ HEAD | grep "code/" | cut -d/ -f2 | uniq) >> $GITHUB_ENV
       - name: Setup | Rust
-        if: env.code_changes >= 1
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ env.rust_toolchain }}
