@@ -3,12 +3,13 @@
 #![feature(type_alias_impl_trait)]
 
 use embassy_executor::{Executor, Spawner};
+use embassy_time::Delay;
+use embedded_hal_async::delay::DelayUs;
 use esp32c3_hal::{
     clock::ClockControl, dma::DmaPriority, embassy, gdma::Gdma, peripherals::Peripherals,
-    prelude::*, timer::TimerGroup, Delay, Rtc, Spi, IO,
+    prelude::*, timer::TimerGroup, Rtc, Spi, IO,
 };
 use esp_backtrace as _;
-use esp_riscv_rt as riscv_rt;
 use static_cell::StaticCell;
 
 use sk6812::{new_rgbw, sk6812_async::Sk6812Spi};
@@ -109,24 +110,24 @@ fn main() -> ! {
         DmaPriority::Priority0,
     )));
 
-    // Delay to slow down the loop a little
-    let delay = Delay::new(&clocks);
 
     let executor = EXECUTOR.init(Executor::new());
     executor.run(|spawner| {
-        spawner.spawn(spi_task(spi, delay)).ok();
+        spawner.spawn(led_task(spi)).ok();
+        spawner.spawn(print_task()).ok();
     });
 }
 
 #[embassy_executor::task]
-async fn spi_task(spi: &'static mut SpiType<'static>, mut delay: Delay) {
+async fn led_task(spi: &'static mut SpiType<'static>) {
     // Create an instance of the led for 9 LEDs on the strip
     let mut led: Sk6812Spi<_, { 9 * 16 }> = Sk6812Spi::new(spi);
 
     // Counter to light up the LEDs one after the other
     let mut counter = 0;
 
-    esp_println::println!("Entering loop...");
+
+    esp_println::println!("Entering led_task loop...");
     loop {
         // Array of colors, each represents a single LED
         let all_colors = [
@@ -157,10 +158,20 @@ async fn spi_task(spi: &'static mut SpiType<'static>, mut delay: Delay) {
         if counter > 9 {
             counter = 0;
         }
-        delay.delay_ms(500_u32);
+        DelayUs::delay_ms(&mut Delay{}, 1000u32).await;
     }
 }
 
-fn print_type_of<T>(_: &T) {
-    esp_println::println!("{}", core::any::type_name::<T>())
+#[embassy_executor::task]
+async fn print_task() {
+    // Counter to light up the LEDs one after the other
+    let mut counter = 0;
+
+    esp_println::println!("Entering print_task loop...");
+    loop {
+        esp_println::println!("print_task look counter: {counter}");
+        counter += 1;
+
+        DelayUs::delay_ms(&mut Delay{}, 200u32).await;
+    }
 }
