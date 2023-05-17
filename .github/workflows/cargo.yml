@@ -83,7 +83,7 @@ jobs:
         run: rustup default ${{ env.rust_toolchain }}
       # for esp32
       - name: Setup | ldproxy
-          run: cargo install ldproxy
+        run: cargo install ldproxy
       # Build example
       - name: Build | Fmt Check
         working-directory: ./examples/stm32l4
