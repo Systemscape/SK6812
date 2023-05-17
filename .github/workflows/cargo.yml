@@ -49,6 +49,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ env.rust_toolchain }}
+          target: thumbv7em-none-eabihf
           components: rustfmt, clippy, rust-src
       # Build example
       - name: Build | Fmt Check
@@ -74,19 +75,20 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ env.rust_toolchain }}
+          target: thumbv7em-none-eabihf
           components: rustfmt, clippy, rust-src
       # for esp32
       - name: Setup | ldproxy
         run: cargo install ldproxy
       # Build example
       - name: Build | Fmt Check
-        working-directory: ./examples/stm32l4
+        working-directory: ./examples/esp32c3
         continue-on-error: true
         run: cargo fmt -- --check
       - name: Build | Clippy
-        working-directory: ./examples/stm32l4
+        working-directory: ./examples/esp32c3
         continue-on-error: true
         run: cargo clippy --all-features --no-deps -- -Dwarnings
       - name: Build | Compile
-        working-directory: ./examples/stm32l4
+        working-directory: ./examples/esp32c3
         run: cargo build --all-features        
