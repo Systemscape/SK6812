@@ -2,12 +2,12 @@ name: Compile
 
 on:
   push:
-    branches:
-      - master
-      - ci
+    branches: [ "main" ]
   pull_request:
+    branches: [ "main" ]
 
 env:
+  CARGO_TERM_COLOR: always
   rust_toolchain: nightly-2023-03-09
 
 jobs:
