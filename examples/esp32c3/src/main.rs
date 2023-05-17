@@ -2,13 +2,14 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
-use embassy_executor::Spawner;
+use embassy_executor::Executor;
+use embassy_time::Delay;
+use embedded_hal_async::delay::DelayUs;
 use esp32c3_hal::{
     clock::ClockControl, dma::DmaPriority, embassy, gdma::Gdma, peripherals::Peripherals,
-    prelude::*, timer::TimerGroup, Delay, Rtc, Spi, IO,
+    prelude::*, timer::TimerGroup, Rtc, Spi, IO,
 };
 use esp_backtrace as _;
-use esp_riscv_rt as riscv_rt;
 use static_cell::StaticCell;
 
 use sk6812::{new_rgbw, sk6812_async::Sk6812Spi};
@@ -22,8 +23,28 @@ macro_rules! singleton {
     }};
 }
 
-#[embassy_executor::main]
-async fn main(_spawner: Spawner) -> ! {
+// Admittedly, this is a bit awkward. But there doesn't seem to be a better solution right now.
+pub type SpiType<'d> = esp32c3_hal::spi::dma::SpiDma<
+    'd,
+    esp32c3_hal::soc::peripherals::SPI2,
+    esp32c3_hal::dma::ChannelTx<
+        'd,
+        esp32c3_hal::dma::gdma::Channel0TxImpl,
+        esp32c3_hal::dma::gdma::Channel0,
+    >,
+    esp32c3_hal::dma::ChannelRx<
+        'd,
+        esp32c3_hal::dma::gdma::Channel0RxImpl,
+        esp32c3_hal::dma::gdma::Channel0,
+    >,
+    esp32c3_hal::gdma::SuitablePeripheral0,
+    esp32c3_hal::spi::FullDuplexMode,
+>;
+
+static EXECUTOR: StaticCell<Executor> = StaticCell::new();
+
+#[entry]
+fn main() -> ! {
     esp_println::println!("Init peripherals etc.");
 
     let peripherals = Peripherals::take();
@@ -74,7 +95,7 @@ async fn main(_spawner: Spawner) -> ! {
     esp_println::println!("Init SPI");
 
     // Create a 300kHz SPI on the configured mosi pin
-    let spi = Spi::new_mosi_only(
+    let spi = singleton!(Spi::new_mosi_only(
         peripherals.SPI2,
         mosi,
         3000u32.kHz(),
@@ -87,18 +108,24 @@ async fn main(_spawner: Spawner) -> ! {
         descriptors,
         rx_descriptors,
         DmaPriority::Priority0,
-    ));
+    )));
 
+    let executor = EXECUTOR.init(Executor::new());
+    executor.run(|spawner| {
+        spawner.spawn(led_task(spi)).ok();
+        spawner.spawn(print_task()).ok();
+    });
+}
+
+#[embassy_executor::task]
+async fn led_task(spi: &'static mut SpiType<'static>) {
     // Create an instance of the led for 9 LEDs on the strip
     let mut led: Sk6812Spi<_, { 9 * 16 }> = Sk6812Spi::new(spi);
 
     // Counter to light up the LEDs one after the other
     let mut counter = 0;
 
-    // Delay to slow down the loop a little
-    let mut delay = Delay::new(&clocks);
-
-    esp_println::println!("Entering loop...");
+    esp_println::println!("Entering led_task loop...");
     loop {
         // Array of colors, each represents a single LED
         let all_colors = [
@@ -129,6 +156,20 @@ async fn main(_spawner: Spawner) -> ! {
         if counter > 9 {
             counter = 0;
         }
-        delay.delay_ms(500_u32);
+        DelayUs::delay_ms(&mut Delay {}, 1000u32).await;
+    }
+}
+
+#[embassy_executor::task]
+async fn print_task() {
+    // Counter to light up the LEDs one after the other
+    let mut counter = 0;
+
+    esp_println::println!("Entering print_task loop...");
+    loop {
+        esp_println::println!("print_task look counter: {counter}");
+        counter += 1;
+
+        DelayUs::delay_ms(&mut Delay {}, 200u32).await;
     }
 }

@@ -21,6 +21,9 @@ panic-probe = { version = "0.3", features = ["print-defmt"] }
 cortex-m = { version = "0.7.6", features = ["critical-section-single-core"] }
 cortex-m-rt = "0.7.0"
 
+
+static_cell = "1.0.0"
+
 sk6812 = { path = "../../" }
 
 [profile.dev]

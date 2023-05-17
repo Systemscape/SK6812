@@ -5,21 +5,40 @@
 
 use defmt::*;
 use embassy_executor::Spawner;
-use embassy_stm32::dma::NoDma;
+use embassy_stm32::{
+    dma::NoDma,
+    rcc::ClockSrc,
+    spi::{Config, Spi},
+    time::Hertz,
+};
 
-use embassy_stm32::rcc::ClockSrc;
-use embassy_stm32::spi::{Config, Spi};
-use embassy_stm32::time::Hertz;
-
-use embedded_hal::prelude::_embedded_hal_blocking_delay_DelayMs;
+use embassy_time::Delay;
+use embedded_hal_async::delay::DelayUs;
+use static_cell::StaticCell;
 
 use {defmt_rtt as _, panic_probe as _};
 
 use sk6812::new_rgbw;
 use sk6812::sk6812_async::Sk6812Spi;
 
+macro_rules! singleton {
+    ($val:expr) => {{
+        type T = impl Sized;
+        static STATIC_CELL: StaticCell<T> = StaticCell::new();
+        let (x,) = STATIC_CELL.init(($val,));
+        x
+    }};
+}
+
+pub type SpiType<'d> = embassy_stm32::spi::Spi<
+    'd,
+    embassy_stm32::peripherals::SPI1,
+    embassy_stm32::peripherals::DMA1_CH3,
+    embassy_stm32::dma::NoDma,
+>;
+
 #[embassy_executor::main]
-async fn main(_spawner: Spawner) {
+async fn main(spawner: Spawner) {
     let mut config = embassy_stm32::Config::default();
     // 72Mhz clock (16 / 1 * 18 / 4)
     // PLLSrc / SrcDiv * PLLMul / ClkDiv
@@ -37,24 +56,28 @@ async fn main(_spawner: Spawner) {
     info!("Tick Hz is {}", embassy_time::TICK_HZ);
 
     // Create tx only spi instance on pin A8 (PA_7) of the nucleo board
-    let spi = Spi::new_txonly_nosck(
+    let spi = singleton!(Spi::new_txonly_nosck(
         p.SPI1,
         p.PA7,
         p.DMA1_CH3,
         NoDma,
         Hertz(3_000_000),
         Config::default(),
-    );
+    ));
 
+    spawner.spawn(led_task(spi)).ok();
+    spawner.spawn(print_task()).ok();
+}
+
+#[embassy_executor::task]
+async fn led_task(spi: &'static mut SpiType<'static>) {
     // Create an instance of the led for 9 LEDs on the strip
-    let mut led: Sk6812Spi<_, {9*16}> = Sk6812Spi::new(spi);
-
-    // embassy_time delay for slowing down the loop.
-    let mut delay = embassy_time::Delay;
+    let mut led: Sk6812Spi<_, { 9 * 16 }> = Sk6812Spi::new(spi);
 
     // Counter to light up the LEDs one after the other
     let mut counter = 0;
 
+    info!("Entering led_task loop...");
     loop {
         // Array of colors, each represents a single LED
         let all_colors = [
@@ -79,13 +102,26 @@ async fn main(_spawner: Spawner) {
         });
 
         // Output the color iterator to the led strip
-        led.write(colors).await.unwrap();
+        led.write(colors).await.expect("Write to led");
 
         counter += 1;
         if counter > 9 {
             counter = 0;
         }
+        DelayUs::delay_ms(&mut Delay {}, 1000u32).await;
+    }
+}
 
-        delay.delay_ms(500_u32);
+#[embassy_executor::task]
+async fn print_task() {
+    // Counter to light up the LEDs one after the other
+    let mut counter = 0;
+
+    info!("Entering print_task loop...");
+    loop {
+        info!("print_task look counter: {}", counter);
+        counter += 1;
+
+        DelayUs::delay_ms(&mut Delay {}, 200u32).await;
     }
 }
