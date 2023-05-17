@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
-use embassy_executor::Spawner;
+use embassy_executor::{Executor, Spawner};
 use esp32c3_hal::{
     clock::ClockControl, dma::DmaPriority, embassy, gdma::Gdma, peripherals::Peripherals,
     prelude::*, timer::TimerGroup, Delay, Rtc, Spi, IO,
@@ -22,8 +22,28 @@ macro_rules! singleton {
     }};
 }
 
-#[embassy_executor::main]
-async fn main(_spawner: Spawner) -> ! {
+// Admittedly, this is a bit awkward. But there doesn't seem to be a better solution right now.
+pub type SpiType<'d> = esp32c3_hal::spi::dma::SpiDma<
+    'd,
+    esp32c3_hal::soc::peripherals::SPI2,
+    esp32c3_hal::dma::ChannelTx<
+        'd,
+        esp32c3_hal::dma::gdma::Channel0TxImpl,
+        esp32c3_hal::dma::gdma::Channel0,
+    >,
+    esp32c3_hal::dma::ChannelRx<
+        'd,
+        esp32c3_hal::dma::gdma::Channel0RxImpl,
+        esp32c3_hal::dma::gdma::Channel0,
+    >,
+    esp32c3_hal::gdma::SuitablePeripheral0,
+    esp32c3_hal::spi::FullDuplexMode,
+>;
+
+static EXECUTOR: StaticCell<Executor> = StaticCell::new();
+
+#[entry]
+fn main() -> ! {
     esp_println::println!("Init peripherals etc.");
 
     let peripherals = Peripherals::take();
@@ -74,7 +94,7 @@ async fn main(_spawner: Spawner) -> ! {
     esp_println::println!("Init SPI");
 
     // Create a 300kHz SPI on the configured mosi pin
-    let spi = Spi::new_mosi_only(
+    let spi = singleton!(Spi::new_mosi_only(
         peripherals.SPI2,
         mosi,
         3000u32.kHz(),
@@ -87,16 +107,24 @@ async fn main(_spawner: Spawner) -> ! {
         descriptors,
         rx_descriptors,
         DmaPriority::Priority0,
-    ));
+    )));
 
+    // Delay to slow down the loop a little
+    let delay = Delay::new(&clocks);
+
+    let executor = EXECUTOR.init(Executor::new());
+    executor.run(|spawner| {
+        spawner.spawn(spi_task(spi, delay)).ok();
+    });
+}
+
+#[embassy_executor::task]
+async fn spi_task(spi: &'static mut SpiType<'static>, mut delay: Delay) {
     // Create an instance of the led for 9 LEDs on the strip
     let mut led: Sk6812Spi<_, { 9 * 16 }> = Sk6812Spi::new(spi);
 
     // Counter to light up the LEDs one after the other
     let mut counter = 0;
-
-    // Delay to slow down the loop a little
-    let mut delay = Delay::new(&clocks);
 
     esp_println::println!("Entering loop...");
     loop {
@@ -131,4 +159,8 @@ async fn main(_spawner: Spawner) -> ! {
         }
         delay.delay_ms(500_u32);
     }
+}
+
+fn print_type_of<T>(_: &T) {
+    esp_println::println!("{}", core::any::type_name::<T>())
 }
