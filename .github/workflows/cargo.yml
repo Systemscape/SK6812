@@ -24,8 +24,6 @@ jobs:
         with:
           toolchain: ${{ env.rust_toolchain }}
           components: rustfmt, clippy, rust-src
-      - name: Setup | Default to nightly
-        run: rustup default ${{ env.rust_toolchain }}
       # Build driver itself
       - name: Build | Fmt Check
         working-directory: ./
@@ -52,8 +50,6 @@ jobs:
         with:
           toolchain: ${{ env.rust_toolchain }}
           components: rustfmt, clippy, rust-src
-      - name: Setup | Default to nightly
-        run: rustup default ${{ env.rust_toolchain }}
       # Build example
       - name: Build | Fmt Check
         working-directory: ./examples/stm32l4
@@ -79,8 +75,6 @@ jobs:
         with:
           toolchain: ${{ env.rust_toolchain }}
           components: rustfmt, clippy, rust-src
-      - name: Setup | Default to nightly
-        run: rustup default ${{ env.rust_toolchain }}
       # for esp32
       - name: Setup | ldproxy
         run: cargo install ldproxy
