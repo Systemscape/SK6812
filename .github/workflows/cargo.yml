@@ -11,8 +11,8 @@ env:
   rust_toolchain: nightly-2023-03-09
 
 jobs:
-  compile:
-    name: Compile
+  compile-driver:
+    name: Compile Driver
     runs-on: ubuntu-latest
     steps:
       - name: Setup | Checkout
@@ -26,8 +26,6 @@ jobs:
           components: rustfmt, clippy, rust-src
       - name: Setup | Default to nightly
         run: rustup default ${{ env.rust_toolchain }}
-      - name: Setup | ldproxy
-        run: cargo install ldproxy
       # Build driver itself
       - name: Build | Fmt Check
         working-directory: ./
@@ -40,3 +38,61 @@ jobs:
       - name: Build | Compile
         working-directory: ./
         run: cargo build --all-features
+
+  compile-stm32-example:
+    name: Compile STM32 Example
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup | Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+      - name: Setup | Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.rust_toolchain }}
+          components: rustfmt, clippy, rust-src
+      - name: Setup | Default to nightly
+        run: rustup default ${{ env.rust_toolchain }}
+      # Build example
+      - name: Build | Fmt Check
+        working-directory: ./examples/stm32l4
+        continue-on-error: true
+        run: cargo fmt -- --check
+      - name: Build | Clippy
+        working-directory: ./examples/stm32l4
+        continue-on-error: true
+        run: cargo clippy --all-features --no-deps -- -Dwarnings
+      - name: Build | Compile
+        working-directory: ./examples/stm32l4
+        run: cargo build --all-features
+  compile-esp32-example:
+    name: Compile esp32c3 Example
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup | Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+      - name: Setup | Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.rust_toolchain }}
+          components: rustfmt, clippy, rust-src
+      - name: Setup | Default to nightly
+        run: rustup default ${{ env.rust_toolchain }}
+      # for esp32
+      - name: Setup | ldproxy
+          run: cargo install ldproxy
+      # Build example
+      - name: Build | Fmt Check
+        working-directory: ./examples/stm32l4
+        continue-on-error: true
+        run: cargo fmt -- --check
+      - name: Build | Clippy
+        working-directory: ./examples/stm32l4
+        continue-on-error: true
+        run: cargo clippy --all-features --no-deps -- -Dwarnings
+      - name: Build | Compile
+        working-directory: ./examples/stm32l4
+        run: cargo build --all-features        
