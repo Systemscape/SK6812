@@ -32,9 +32,11 @@ esp32c3-hal = { version = "0.9", features = [
     "embassy-time-systick",
 ] }
 
-embassy-executor = { package = "embassy-executor", git = "https://github.com/embassy-rs/embassy/", rev = "cd9a65b", features = [
+embassy-executor = { version = "0.2", git = "https://github.com/embassy-rs/embassy", features = [
     "nightly",
     "integrated-timers",
+    "executor-thread",
+    "arch-riscv32"
 ] }
 
 esp-backtrace = { version = "0.6.0", features = [
